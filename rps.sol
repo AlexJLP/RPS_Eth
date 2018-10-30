@@ -2,7 +2,7 @@ pragma solidity ^0.4.7;
 import "remix_tests.sol"; // this import is automatically injected by Remix.
 
 
-contract StateMachine {
+contract UltimateRPS {
   enum Stages {
                AcceptingBet,
                WaitingForCommitments,
@@ -42,6 +42,11 @@ contract StateMachine {
   function nextStage() internal {
     stage = Stages(uint(stage) + 1);
   }
+
+  function restart() internal {
+    stage = Stages(0);
+  }
+
 
   modifier transitionNext()
   {
@@ -191,6 +196,8 @@ contract StateMachine {
     } else {
       // We should never reach this point unless both parties don't reveal. In this case, keep all the eth
       require(false, "No one revealed!");
+      resetVars();
+      restart();
     }
 
   }
