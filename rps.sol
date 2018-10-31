@@ -25,8 +25,22 @@ contract UltimateRPS {
   uint public bet;
   bool public playerOnePlayConfirmed;
   bool public playerTwoPlayConfirmed;
+  string public temp1;
+  bytes32 public temp2;
 
-  uint public creationTime = now;
+  
+  uint public stageTime = now;
+
+  constructor() public {
+    playerOne = address(0);
+    playerTwo = address(0);
+    playerOneBlindedPlay = "";
+    playerTwoBlindedPlay = "";
+    playerOnePlay = "";
+    playerTwoPlay = "";
+    bet = 0;
+  }
+
 
   //////////////////////////////
   ////// FSM Facilitation //////
@@ -55,14 +69,13 @@ contract UltimateRPS {
   }
 
 
-
-  // Perform timed transitions. Be sure to mention
-  // this modifier first, otherwise the guards
-  // will not take the new stage into account.
-  // TODO: Change this 
+  // Time limits for commit and reveal stage.
   modifier timedTransitions() {
+    if (stage == Stages.WaitingForCommitments &&
+        now >= stageTime + 3 hours)
+      nextStage();
     if (stage == Stages.WaitingForReveals &&
-        now >= creationTime + 10 days)
+        now >= stageTime + 3 hours)
       nextStage();
     _;
   }
@@ -71,27 +84,41 @@ contract UltimateRPS {
   //// INTERACTIVE FUNCTIONS START HERE ////
   //////////////////////////////////////////
 
-    /// Place your bet by paying it with the transaction.
+  /// Place your bet by paying it with the transaction.
   function placeBet()
     public
     payable
-    timedTransitions
+    //  timedTransitions // Problem: what if no one places a bet? Need to add option for p1 to withdraw their bet if and only if no one else bets
     atStage(Stages.AcceptingBet)
   {
     // Check if we need to decline the transaction
     require((msg.sender != playerOne), "Player 1, you have already placed a bet!");
-    if (playerOne != 0) {
+    if (playerOne == address(0)) {
       // The person placing the bet is the first person!
       playerOne = msg.sender;
       // Accept any bet value
       bet = msg.value;
-        } else {
+      stageTime = now; // Set start time for the contract now to facilitate time-outs
+    } else {
       // The person that is placing the bet is the second player!
+      playerTwo = msg.sender;
       require((msg.value == bet), "Bet must be the same as first player's!");
       nextStage(); // Both bets have been placed, we can continue to the next phase.
     }
   }
 
+  /// Cancel bet if no player 2 is willing to bet the same amount
+  function withdraw()
+    public
+    atStage(Stages.AcceptingBet)
+  {
+    require(msg.sender == playerOne);
+    require(bet > 0);
+    uint amount = bet;
+    resetVars();
+    restart();
+    require(msg.sender.send(amount));
+   }
 
   /// Commit to a play here.
   /// Invoke with _blindedPlay = sha256(play, secret)
@@ -100,7 +127,9 @@ contract UltimateRPS {
   ///   secret = a random string
   /// For example, to commit to scissors, I create a random
   /// string (eg. "fkwQoISp2u") and invoke commit as follows:
-  /// commit(sha256("scissors","fkwQoISp2u"))
+  /// commit(0xd828a29758a0448cf629b15829fa133042bc9981344f5fba470390726362803a)
+  ///
+  /// Get this hash in bash by doing echo -n "scissorsfkwQoISp2u" | sha256sum | awk '{print "0x"$1}'
   ///
   /// NOTE:
   /// You can only win if your play is correctly verified
@@ -151,7 +180,7 @@ contract UltimateRPS {
       require(checkPlayValid(_play), "Reveal verification failed: You must only play rock, paper or scissors");
       playerTwoPlay =_play;
     } else {
-      require(false, "A game is in process and you are not currently playing! Try again later");
+      //require(false, "A game is in process and you are not currently playing! Try again later");
     }
     // Now see if both people revealed
     if (!compareStrings(playerOnePlay, "") && !compareStrings(playerTwoPlay,"")) {
@@ -215,15 +244,25 @@ contract UltimateRPS {
   // bytes32 to string (WHY DOES THIS HAVE TO BE DONE EXPLICITLY???)
   // TypeError: Explicit type conversion not allowed from "bytes32" to "string storage pointer"
   // https://ethereum.stackexchange.com/questions/2519/how-to-convert-a-bytes32-to-string
-  function toString(bytes32 _bytes32) 
-    public
-    returns (string)
-  {
-    bytes memory bytesArray = new bytes(32);
-    for (uint256 i; i < 32; i++) {
-      bytesArray[i] = _bytes32[i];
+  // https://ethereum.stackexchange.com/questions/46321/store-literal-bytes4-as-string
+  function toHexDigit(uint8 d) pure internal returns (byte) {                                                                                      
+    if (0 <= d && d <= 9) {                                                                                                                      
+        return byte(uint8(byte('0')) + d);                                                                                                       
+    } else if (10 <= uint8(d) && uint8(d) <= 15) {                                                                                               
+        return byte(uint8(byte('a')) + d - 10);                                                                                                  
+    }                                                                                                                                            
+    revert();                                                                                                                                    
+  }                                                                                                                                                
+
+  function toString(bytes32 code) public view returns (string) {                                                                                    
+    bytes memory result = new bytes(66);                                                                                                         
+    result[0] = byte('0');
+    result[1] = byte('x');
+    for (uint i=0; i<32; ++i) {
+        result[2*i+2] = toHexDigit(uint8(code[i])/16);
+        result[2*i+3] = toHexDigit(uint8(code[i])%16);
     }
-    return string(bytesArray);
+    return string(result);
   }
   
   function checkPlayValid(string __play)
@@ -273,8 +312,8 @@ contract UltimateRPS {
   function resetVars()
     private
   {
-    playerOne = 0;
-    playerTwo = 0;
+    playerOne = address(0);
+    playerTwo = address(0);
     playerOneBlindedPlay = "";
     playerTwoBlindedPlay = "";
     bet = 0;
