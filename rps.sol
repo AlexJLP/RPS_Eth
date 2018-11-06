@@ -141,10 +141,10 @@ contract UltimateRPS {
   {
     // Check who is the sender
     if (msg.sender == playerOne) {
-      require(compareStrings(playerOneBlindedPlay, ""), "You can not change your bid!");
+      require(compareStrings(playerOneBlindedPlay, ""), "You can not change your commitment!");
       playerOneBlindedPlay =_blindedPlay;
     } else if (msg. sender == playerTwo) {
-      require(compareStrings(playerTwoBlindedPlay, ""), "You can not change your bid!");
+      require(compareStrings(playerTwoBlindedPlay, ""), "You can not change your commitment!");
       playerTwoBlindedPlay =_blindedPlay;
     } else {
       require(false, "A game is in process and you are not currently playing! Try again later");
@@ -180,7 +180,7 @@ contract UltimateRPS {
       require(checkPlayValid(_play), "Reveal verification failed: You must only play rock, paper or scissors");
       playerTwoPlay =_play;
     } else {
-      //require(false, "A game is in process and you are not currently playing! Try again later");
+      require(false, "A game is in process and you are not currently playing! Try again later");
     }
     // Now see if both people revealed
     if (!compareStrings(playerOnePlay, "") && !compareStrings(playerTwoPlay,"")) {
@@ -216,18 +216,21 @@ contract UltimateRPS {
           winOne();
         }
       }
-    } else if (!compareStrings(playerOnePlay, "")  && compareStrings(playerTwoPlay, "")) {
+    } else if (!compareStrings(playerOnePlay, "") && compareStrings(playerTwoPlay, "")) {
       // Player One has revealed, player two has not -> 1 wins by default
       winOne();
-    } else if (compareStrings(playerOnePlay, "")  && !compareStrings(playerTwoPlay, "")) {
+    } else if (compareStrings(playerOnePlay, "") && !compareStrings(playerTwoPlay, "")) {
       // Player Two has revealed, player one has not -> 2 wins by default
       winOne();
     } else {
-      // We should never reach this point unless both parties don't reveal. In this case, keep all the eth
-      require(false, "No one revealed!");
+      // We should never reach this point unless both parties don't reveal.
+      // We need to check if at least one party has committed. They will be refunded. Otherwise, we keep their bet.
+      
+      //require(false, "No one revealed!");
       resetVars();
-      restart();
     }
+      restart();
+    
 
   }
 
@@ -316,6 +319,8 @@ contract UltimateRPS {
     playerTwo = address(0);
     playerOneBlindedPlay = "";
     playerTwoBlindedPlay = "";
+    playerOnePlay = "";
+    playerTwoPlay = "";
     bet = 0;
     playerOnePlayConfirmed = false;
     playerTwoPlayConfirmed = false;
